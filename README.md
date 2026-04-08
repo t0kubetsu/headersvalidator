@@ -25,6 +25,7 @@ $ headersvalidator check example.com
 - [CLI Usage](#cli-usage)
 - [Python API](#python-api)
 - [Scoring](#scoring)
+- [Security Verdict & Grading](#security-verdict--grading)
 - [Project Structure](#project-structure)
 - [Running Tests](#running-tests)
 - [Contributing](#contributing)
@@ -169,6 +170,26 @@ print(report.deprecated)  # list[HeaderResult] — status DEPRECATED
 ```
 
 `Status` values: `PASS`, `WARN`, `FAIL`, `INFO`, `DEPRECATED`.
+
+---
+
+## Security Verdict & Grading
+
+Every `headersvalidator check` run ends with a **Security Verdict** panel listing
+prioritised action items and an **A+ – F letter grade** based on a penalty-point model.
+
+For a full explanation of severity levels, the per-header threat model, and why certain
+headers (e.g. CSP) are rated CRITICAL while others (e.g. Permissions-Policy) are HIGH,
+see **[docs/security-verdict.md](docs/security-verdict.md)**.
+
+| Severity | Penalty | When assigned |
+| -------- | ------- | ------------- |
+| CRITICAL | 10 pts  | Tier-1 header absent (STS, CSP, XFO, XCTO) — direct exploit path |
+| HIGH     |  5 pts  | Tier-2 header absent (Referrer-Policy, Permissions-Policy) or bad value on required header |
+| MEDIUM   |  2 pts  | Sub-optimal value on required header; bad value on optional header; deprecated header present |
+| INFO     |  0 pts  | Observation on optional header — shown in panel, zero penalty |
+
+Grade thresholds: **0 → A+** · **1–10 → A** · **11–20 → B** · **21–30 → C** · **31–40 → D** · **> 40 → F**
 
 ---
 
