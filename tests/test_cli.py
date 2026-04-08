@@ -162,6 +162,85 @@ class TestCheckJsonOutput:
 
 
 # ---------------------------------------------------------------------------
+# check command — --output / -o flag
+# ---------------------------------------------------------------------------
+
+
+class TestCheckOutputFlag:
+    def test_output_txt_creates_file(self, tmp_path):
+        path = tmp_path / "report.txt"
+        report = _make_report(Status.PASS)
+        with _patch_assess(report):
+            result = runner.invoke(
+                app, ["check", "--output", str(path), "https://example.com"]
+            )
+        assert result.exit_code == 0
+        assert path.exists()
+        content = path.read_text()
+        assert "example.com" in content
+
+    def test_output_svg_creates_file(self, tmp_path):
+        path = tmp_path / "report.svg"
+        report = _make_report(Status.PASS)
+        with _patch_assess(report):
+            result = runner.invoke(
+                app, ["check", "--output", str(path), "https://example.com"]
+            )
+        assert result.exit_code == 0
+        assert path.exists()
+        assert "<svg" in path.read_text()
+
+    def test_output_html_creates_file(self, tmp_path):
+        path = tmp_path / "report.html"
+        report = _make_report(Status.PASS)
+        with _patch_assess(report):
+            result = runner.invoke(
+                app, ["check", "--output", str(path), "https://example.com"]
+            )
+        assert result.exit_code == 0
+        assert path.exists()
+        assert "<html" in path.read_text().lower()
+
+    def test_output_unknown_ext_writes_plain_text(self, tmp_path):
+        path = tmp_path / "report.log"
+        report = _make_report(Status.PASS)
+        with _patch_assess(report):
+            result = runner.invoke(
+                app, ["check", "--output", str(path), "https://example.com"]
+            )
+        assert result.exit_code == 0
+        assert path.exists()
+
+    def test_short_flag_o_accepted(self, tmp_path):
+        path = tmp_path / "report.txt"
+        report = _make_report(Status.PASS)
+        with _patch_assess(report):
+            result = runner.invoke(
+                app, ["check", "-o", str(path), "https://example.com"]
+            )
+        assert result.exit_code == 0
+        assert path.exists()
+
+    def test_saved_message_printed_to_console(self, tmp_path):
+        path = tmp_path / "report.txt"
+        report = _make_report(Status.PASS)
+        with _patch_assess(report):
+            result = runner.invoke(
+                app, ["check", "--output", str(path), "https://example.com"]
+            )
+        assert "Report saved to" in result.output
+
+    def test_output_does_not_suppress_terminal_report(self, tmp_path):
+        path = tmp_path / "report.txt"
+        report = _make_report(Status.PASS)
+        with _patch_assess(report):
+            result = runner.invoke(
+                app, ["check", "--output", str(path), "https://example.com"]
+            )
+        assert "example.com" in result.output  # terminal still shows report
+
+
+# ---------------------------------------------------------------------------
 # info subcommands
 # ---------------------------------------------------------------------------
 

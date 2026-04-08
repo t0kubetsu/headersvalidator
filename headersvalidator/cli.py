@@ -49,6 +49,15 @@ def check(
     fail_on_warn: bool = typer.Option(
         False, "--strict", help="Exit code 1 on WARN as well as FAIL."
     ),
+    output: str | None = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help=(
+            "Save the report to a file. Format is inferred from the extension: "
+            ".txt for plain text, .svg for SVG, .html for HTML."
+        ),
+    ),
 ) -> None:
     """
     Fetch *URL* and validate its HTTP response headers.
@@ -75,6 +84,9 @@ def check(
         return
 
     print_full_report(report, console=console)
+
+    if output:
+        _save_report(report, output)
 
     _exit_for_status(report.status, fail_on_warn)
 
@@ -216,6 +228,40 @@ def _exit_for_status(status, fail_on_warn: bool) -> None:
         raise typer.Exit(code=1)
     if fail_on_warn and status == Status.WARN:
         raise typer.Exit(code=1)
+
+
+def _save_report(report, path: str) -> None:
+    """
+    Render *report* to a file at *path*.
+
+    The output format is inferred from the file extension:
+    ``.txt`` → plain text (no ANSI codes), ``.svg`` → SVG image,
+    ``.html`` → self-contained HTML page.  Any other extension is
+    treated as plain text.
+
+    :param report: :class:`~headersvalidator.models.HeadersReport` to render.
+    :param path: Destination file path.
+    """
+    from pathlib import Path
+
+    from rich.console import Console as RichConsole
+
+    from headersvalidator.reporter import print_full_report
+
+    ext = Path(path).suffix.lower()
+
+    rec_console = RichConsole(record=True, highlight=False, width=120)
+    print_full_report(report, console=rec_console)
+
+    if ext == ".svg":
+        content = rec_console.export_svg(title=f"headersvalidator — {report.url}")
+    elif ext == ".html":
+        content = rec_console.export_html(inline_styles=True)
+    else:
+        content = rec_console.export_text()
+
+    Path(path).write_text(content, encoding="utf-8")
+    console.print(f"[dim]Report saved to[/dim] {path}")
 
 
 def _print_json(report) -> None:
