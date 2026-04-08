@@ -180,7 +180,7 @@ prioritised action items and an **A+ – F letter grade** based on a penalty-poi
 
 For a full explanation of severity levels, the per-header threat model, and why certain
 headers (e.g. CSP) are rated CRITICAL while others (e.g. Permissions-Policy) are HIGH,
-see **[docs/security-verdict.md](docs/security-verdict.md)**.
+see **[docs/SECURITY_VERDICT.md](docs/SECURITY_VERDICT.md)**.
 
 | Severity | Penalty | When assigned |
 | -------- | ------- | ------------- |
