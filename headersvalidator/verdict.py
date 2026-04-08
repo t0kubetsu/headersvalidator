@@ -79,9 +79,9 @@ _SEVERITY_ORDER: dict[VerdictSeverity, int] = {
 }
 
 _PENALTY: dict[VerdictSeverity, int] = {
-    VerdictSeverity.CRITICAL: 25,
-    VerdictSeverity.HIGH: 10,
-    VerdictSeverity.MEDIUM: 3,
+    VerdictSeverity.CRITICAL: 10,
+    VerdictSeverity.HIGH: 5,
+    VerdictSeverity.MEDIUM: 2,
 }
 
 # Penalty thresholds for letter grades (inclusive upper bound; 0 → A+).
@@ -111,9 +111,9 @@ def calculate_grade(actions: list[VerdictAction]) -> Grade:
 
     Penalty weights:
 
-    * ``CRITICAL`` → 25 points
-    * ``HIGH``     → 10 points
-    * ``MEDIUM``   →  3 points
+    * ``CRITICAL`` → 10 points
+    * ``HIGH``     →  5 points
+    * ``MEDIUM``   →  2 points
 
     Grade thresholds:
 

@@ -198,36 +198,37 @@ class TestCalculateGrade:
         grade = calculate_grade([])
         assert "No issues" in grade.rationale
 
-    def test_one_critical_gives_c(self):
-        # 25 pts → ≤ 30 threshold → C
+    def test_one_critical_gives_a(self):
+        # 10 pts → ≤ 10 threshold → A
         actions = [VerdictAction("t", VerdictSeverity.CRITICAL, "H")]
-        grade = calculate_grade(actions)
-        assert grade.letter == "C"
-        assert grade.penalty == 25
-
-    def test_one_high_gives_a(self):
-        actions = [VerdictAction("t", VerdictSeverity.HIGH, "H")]
         grade = calculate_grade(actions)
         assert grade.letter == "A"
         assert grade.penalty == 10
 
-    def test_one_medium_gives_a(self):
-        # 3 pts → ≤ 10 threshold → A
+    def test_one_high_gives_a(self):
+        # 5 pts → ≤ 10 threshold → A
+        actions = [VerdictAction("t", VerdictSeverity.HIGH, "H")]
+        grade = calculate_grade(actions)
+        assert grade.letter == "A"
+        assert grade.penalty == 5
+
+    def test_one_medium_gives_a_plus(self):
+        # 2 pts → ≤ 10 threshold → A
         actions = [VerdictAction("t", VerdictSeverity.MEDIUM, "H")]
         grade = calculate_grade(actions)
         assert grade.letter == "A"
-        assert grade.penalty == 3
+        assert grade.penalty == 2
 
     @pytest.mark.parametrize(
         "actions_spec, expected_letter",
         [
             ([], "A+"),
-            ([("MEDIUM",)], "A"),              # 3 pts  → ≤ 10 → A
-            ([("HIGH",)], "A"),                # 10 pts → ≤ 10 → A
-            ([("HIGH",), ("MEDIUM",)], "B"),   # 13 pts → ≤ 20 → B
-            ([("HIGH",), ("HIGH",)], "B"),     # 20 pts → ≤ 20 → B
-            ([("CRITICAL",)], "C"),            # 25 pts → ≤ 30 → C
-            ([("CRITICAL",), ("HIGH",)], "D"), # 35 pts → ≤ 40 → D
+            ([("MEDIUM",)], "A"),                                         # 2 pts  → ≤ 10 → A
+            ([("HIGH",)], "A"),                                           # 5 pts  → ≤ 10 → A
+            ([("CRITICAL",)], "A"),                                       # 10 pts → ≤ 10 → A
+            ([("CRITICAL",), ("CRITICAL",)], "B"),                        # 20 pts → ≤ 20 → B
+            ([("CRITICAL",), ("CRITICAL",), ("CRITICAL",)], "C"),         # 30 pts → ≤ 30 → C
+            ([("CRITICAL",), ("CRITICAL",), ("CRITICAL",), ("CRITICAL",)], "D"),  # 40 pts → ≤ 40 → D
         ],
     )
     def test_grade_thresholds(self, actions_spec, expected_letter):
@@ -257,25 +258,23 @@ class TestCalculateGrade:
 
     def test_penalty_accumulates(self):
         actions = [
-            VerdictAction("t", VerdictSeverity.CRITICAL, "H"),  # 25
-            VerdictAction("t", VerdictSeverity.HIGH, "H"),       # 10
-            VerdictAction("t", VerdictSeverity.MEDIUM, "H"),     # 3
+            VerdictAction("t", VerdictSeverity.CRITICAL, "H"),  # 10
+            VerdictAction("t", VerdictSeverity.HIGH, "H"),       # 5
+            VerdictAction("t", VerdictSeverity.MEDIUM, "H"),     # 2
         ]
         grade = calculate_grade(actions)
-        assert grade.penalty == 38
+        assert grade.penalty == 17
 
     def test_d_grade_boundary(self):
-        # 4 HIGH = 40 pts → D (≤ 40)
-        actions = [VerdictAction("t", VerdictSeverity.HIGH, "H") for _ in range(4)]
+        # 4 CRITICAL = 40 pts → D (≤ 40)
+        actions = [VerdictAction("t", VerdictSeverity.CRITICAL, "H") for _ in range(4)]
         grade = calculate_grade(actions)
         assert grade.letter == "D"
         assert grade.penalty == 40
 
     def test_f_grade_just_above_d_boundary(self):
-        # 41 pts → F
-        actions = [
-            VerdictAction("t", VerdictSeverity.HIGH, "H") for _ in range(4)
-        ] + [VerdictAction("t", VerdictSeverity.MEDIUM, "H")]
+        # 5 CRITICAL = 50 pts → F (> 40)
+        actions = [VerdictAction("t", VerdictSeverity.CRITICAL, "H") for _ in range(5)]
         grade = calculate_grade(actions)
         assert grade.letter == "F"
-        assert grade.penalty == 43
+        assert grade.penalty == 50
