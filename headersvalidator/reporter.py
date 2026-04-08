@@ -1,9 +1,8 @@
-"""
-Rich terminal output for headersvalidator.
+"""Rich terminal output for headersvalidator.
 
-Mirrors chainvalidator's reporter.py: pure display functions that receive
-a HeadersReport and render it to the terminal using Rich.
-The CLI calls these; the library never touches them.
+Pure display functions that receive a :class:`~headersvalidator.models.HeadersReport`
+and render it to the terminal using Rich.  The CLI calls these; the library
+never touches them.
 """
 
 from __future__ import annotations
@@ -15,6 +14,13 @@ from rich.table import Table
 from rich.text import Text
 
 from headersvalidator.models import HeadersReport, Status
+from headersvalidator.verdict import (
+    Grade,
+    VerdictAction,
+    VerdictSeverity,
+    calculate_grade,
+    extract_verdict_actions,
+)
 
 # One shared console; callers can pass their own for testing
 _console = Console(highlight=False)
@@ -28,6 +34,23 @@ _STATUS_STYLE: dict[Status, tuple[str, str]] = {
     Status.DEPRECATED: ("magenta", "⊘"),
 }
 
+# Severity → Rich colour string
+_SEVERITY_STYLE: dict[VerdictSeverity, str] = {
+    VerdictSeverity.CRITICAL: "bold red",
+    VerdictSeverity.HIGH: "bold yellow",
+    VerdictSeverity.MEDIUM: "bold cyan",
+}
+
+# Grade letter → Rich colour string
+_GRADE_STYLE: dict[str, str] = {
+    "A+": "bold bright_green",
+    "A": "bold green",
+    "B": "bold yellow",
+    "C": "bold yellow",
+    "D": "bold red",
+    "F": "bold bright_red",
+}
+
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -35,33 +58,26 @@ _STATUS_STYLE: dict[Status, tuple[str, str]] = {
 
 
 def print_full_report(report: HeadersReport, console: Console | None = None) -> None:
-    """
-    Render a complete, colour-coded terminal report for *report*.
+    """Render a complete, colour-coded terminal report for *report*.
 
-    Prints the summary panel, per-header results table, and score panel in order.
+    Prints a rule header, per-header results table, security verdict panel,
+    and a closing rule in order.
 
     :param report: Validation report returned by :func:`headersvalidator.assessor.assess`.
     :param console: Optional Rich console to write to; defaults to the module-level console.
     """
     con = console or _console
-    _print_summary_panel(report, con)
+    con.rule(f"[bold cyan]headersvalidator — {report.url}[/bold cyan]")
+    con.print()
     _print_results_table(report, con)
-    _print_score_panel(report, con)
-
-
-def print_summary_panel(report: HeadersReport, console: Console | None = None) -> None:
-    """
-    Print only the top-level summary panel.
-
-    :param report: Validation report to summarise.
-    :param console: Optional Rich console; defaults to the module-level console.
-    """
-    _print_summary_panel(report, console or _console)
+    actions = extract_verdict_actions(report)
+    grade = calculate_grade(actions)
+    _print_verdict(actions, grade, con)
+    con.rule("[dim]End of Report[/dim]")
 
 
 def print_results_table(report: HeadersReport, console: Console | None = None) -> None:
-    """
-    Print only the per-header results table.
+    """Print only the per-header results table.
 
     :param report: Validation report whose results should be tabulated.
     :param console: Optional Rich console; defaults to the module-level console.
@@ -75,8 +91,7 @@ def print_results_table(report: HeadersReport, console: Console | None = None) -
 
 
 def _status_text(status: Status) -> Text:
-    """
-    Build a colour-coded Rich :class:`~rich.text.Text` label for *status*.
+    """Build a colour-coded Rich :class:`~rich.text.Text` label for *status*.
 
     :param status: Validation status to render.
     :returns: Rich Text object with colour styling applied.
@@ -86,43 +101,27 @@ def _status_text(status: Status) -> Text:
     return Text(f"{symbol} {status.value}", style=f"bold {colour}")
 
 
-def _print_summary_panel(report: HeadersReport, con: Console) -> None:
-    """
-    Render the top-level summary Rich panel to *con*.
+def _grade_text(grade: Grade) -> Text:
+    """Build a styled Rich :class:`~rich.text.Text` for the grade summary line.
 
-    :param report: Validation report to summarise.
-    :param con: Rich console to write to.
-    """
-    overall = report.status
-    colour, symbol = _STATUS_STYLE[overall]
+    The text assembles "Security Verdict", the letter grade (styled by
+    :data:`_GRADE_STYLE`), and the rationale into a single :class:`~rich.text.Text`.
 
-    lines = [
-        f"  URL          {report.url}",
-        f"  Final URL    {report.final_url}",
-        f"  HTTP Status  {report.status_code}",
-        f"  Verdict      [{colour}]{symbol} {overall.value}[/{colour}]",
-        f"  Score        {report.score}/100",
-        "",
-        f"  PASS {len(report.passed):>3}   "
-        f"[yellow]WARN {len(report.warned):>3}[/yellow]   "
-        f"[red]FAIL {len(report.failed):>3}[/red]   "
-        f"[magenta]DEPRECATED {len(report.deprecated):>3}[/magenta]",
-    ]
-    con.print(
-        Panel(
-            "\n".join(lines),
-            title="[bold]headersvalidator[/bold] — HTTP Security Header Report",
-            border_style=colour,
-            expand=False,
-            padding=(0, 2),
-        )
+    :param grade: Computed grade to render.
+    :returns: Rich Text with letter grade styled according to its value.
+    :rtype: rich.text.Text
+    """
+    style = _GRADE_STYLE.get(grade.letter, "bold white")
+    return Text.assemble(
+        ("Security Verdict  ", "bold white"),
+        (grade.letter, style),
+        ("  ", ""),
+        (grade.rationale, "dim"),
     )
-    con.print()
 
 
 def _print_results_table(report: HeadersReport, con: Console) -> None:
-    """
-    Render the per-header results as a Rich table to *con*.
+    """Render the per-header results as a Rich table to *con*.
 
     :param report: Validation report whose results should be tabulated.
     :param con: Rich console to write to.
@@ -165,37 +164,42 @@ def _print_results_table(report: HeadersReport, con: Console) -> None:
     con.print()
 
 
-def _print_score_panel(report: HeadersReport, con: Console) -> None:
-    """
-    Render the security score panel with a progress bar to *con*.
+def _print_verdict(actions: list[VerdictAction], grade: Grade, con: Console) -> None:
+    """Render the security verdict panel to *con*.
 
-    :param report: Validation report whose score should be displayed.
+    Displays a table of prioritised action items (CRITICAL → HIGH → MEDIUM)
+    inside a Rich panel whose border colour reflects the overall grade.
+
+    :param actions: Severity-sorted list from :func:`~headersvalidator.verdict.extract_verdict_actions`.
+    :param grade: Overall grade from :func:`~headersvalidator.verdict.calculate_grade`.
     :param con: Rich console to write to.
     """
-    score = report.score
-    if score >= 80:
-        colour, label = "green", "Good"
-    elif score >= 50:
-        colour, label = "yellow", "Needs improvement"
-    else:
-        colour, label = "red", "Poor"
+    border_colour = _GRADE_STYLE.get(grade.letter, "bold white").split()[-1]
 
-    bar_width = 40
-    filled = round(score / 100 * bar_width)
-    bar = f"[{colour}]{'█' * filled}[/{colour}][dim]{'░' * (bar_width - filled)}[/dim]"
+    table = Table(box=box.SIMPLE, show_header=True, header_style="bold white", expand=True)
+    table.add_column("Priority", style="bold", min_width=10, no_wrap=True)
+    table.add_column("Action")
 
-    missing_required = [r for r in report.failed if not r.present]
-    tip = ""
-    if missing_required:
-        tip = "\n  Quick win: add " + ", ".join(r.name for r in missing_required[:3])
-        if len(missing_required) > 3:
-            tip += f" (+{len(missing_required) - 3} more)"
+    for action in actions:
+        sev_style = _SEVERITY_STYLE[action.severity]
+        table.add_row(
+            Text(action.severity.value, style=sev_style),
+            action.text,
+        )
+
+    if not actions:
+        table.add_row(
+            Text("PASS", style="bold green"),
+            "No issues found — all evaluated headers pass.",
+        )
 
     con.print(
         Panel(
-            f"  Security Score  {bar}  [{colour}]{score}/100 — {label}[/{colour}]{tip}",
-            border_style=colour,
+            table,
+            title=_grade_text(grade),
+            border_style=border_colour,
             expand=False,
             padding=(0, 1),
         )
     )
+    con.print()

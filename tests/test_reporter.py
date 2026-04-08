@@ -8,10 +8,13 @@ from rich.console import Console
 
 from headersvalidator.models import HeaderResult, HeadersReport, Status
 from headersvalidator.reporter import (
+    _grade_text,
+    _print_verdict,
+    _status_text,
     print_full_report,
     print_results_table,
-    print_summary_panel,
 )
+from headersvalidator.verdict import Grade, VerdictAction, VerdictSeverity
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -69,10 +72,11 @@ class TestPrintFullReport:
         output = _capture(print_full_report, report)
         assert "X-Frame-Options" in output
 
-    def test_contains_score(self):
+    def test_contains_grade_letter(self):
         report = _make_report(("X-Frame-Options", Status.PASS))
         output = _capture(print_full_report, report)
-        assert "/100" in output
+        # Grade letters A+, A, B, C, D, F must appear somewhere
+        assert any(g in output for g in ("A+", "A", "B", "C", "D", "F"))
 
     def test_shows_pass_verdict(self):
         report = _make_report(("X-Frame-Options", Status.PASS))
@@ -89,28 +93,10 @@ class TestPrintFullReport:
         output = _capture(print_full_report, report)
         assert "WARN" in output
 
-
-# ---------------------------------------------------------------------------
-# print_summary_panel
-# ---------------------------------------------------------------------------
-
-
-class TestPrintSummaryPanel:
-    def test_shows_status_code(self):
-        report = _make_report(("H", Status.PASS), status_code=200)
-        output = _capture(print_summary_panel, report)
-        assert "200" in output
-
-    def test_shows_pass_warn_fail_counts(self):
-        report = _make_report(
-            ("H1", Status.PASS),
-            ("H2", Status.WARN),
-            ("H3", Status.FAIL),
-        )
-        output = _capture(print_summary_panel, report)
-        assert "PASS" in output
-        assert "WARN" in output
-        assert "FAIL" in output
+    def test_shows_end_of_report_rule(self):
+        report = _make_report(("X-Frame-Options", Status.PASS))
+        output = _capture(print_full_report, report)
+        assert "End of Report" in output
 
 
 # ---------------------------------------------------------------------------
@@ -183,84 +169,97 @@ class TestPrintResultsTable:
 
 
 # ---------------------------------------------------------------------------
-# Score panel thresholds
-# ---------------------------------------------------------------------------
-
-
-# ---------------------------------------------------------------------------
 # _status_text helper
 # ---------------------------------------------------------------------------
 
 
 class TestStatusText:
     def test_returns_rich_text_for_pass(self):
-        from headersvalidator.reporter import _status_text
-
         text = _status_text(Status.PASS)
         assert "PASS" in text.plain
 
     def test_returns_rich_text_for_fail(self):
-        from headersvalidator.reporter import _status_text
-
         text = _status_text(Status.FAIL)
         assert "FAIL" in text.plain
 
 
-class TestScorePanel:
-    def _score_output(self, score_pairs) -> str:
-        from headersvalidator.reporter import _print_score_panel
+# ---------------------------------------------------------------------------
+# _grade_text helper
+# ---------------------------------------------------------------------------
 
+
+class TestGradeText:
+    def test_includes_letter(self):
+        grade = Grade(letter="A+", penalty=0, rationale="No issues found — all evaluated headers pass.")
+        text = _grade_text(grade)
+        assert "A+" in text.plain
+
+    def test_includes_rationale(self):
+        grade = Grade(letter="F", penalty=50, rationale="2 critical issue(s) found (50 penalty point(s)).")
+        text = _grade_text(grade)
+        assert "critical" in text.plain
+
+    def test_unknown_grade_letter_uses_default_style(self):
+        grade = Grade(letter="Z", penalty=0, rationale="test")
+        text = _grade_text(grade)
+        assert "Z" in text.plain
+
+
+# ---------------------------------------------------------------------------
+# _print_verdict
+# ---------------------------------------------------------------------------
+
+
+class TestPrintVerdict:
+    def _verdict_output(self, actions, grade) -> str:
         buf = StringIO()
         con = Console(file=buf, highlight=False, no_color=True, width=200)
-        report = _make_report(*score_pairs)
-        _print_score_panel(report, con)
+        _print_verdict(actions, grade, con)
         return buf.getvalue()
 
-    def test_good_label_above_80(self):
-        pairs = [(f"H{i}", Status.PASS) for i in range(5)]
-        output = self._score_output(pairs)
-        assert "Good" in output
-
-    def test_needs_improvement_label_50_to_79(self):
-        # 1 PASS + 1 FAIL = 33% → Poor; use 3 PASS + 1 FAIL = 75% → Needs improvement
-        pairs = [
-            ("H1", Status.PASS),
-            ("H2", Status.PASS),
-            ("H3", Status.PASS),
-            ("H4", Status.FAIL),
-        ]
-        output = self._score_output(pairs)
-        assert "improvement" in output.lower() or "Good" in output  # 75% may hit either
-
-    def test_poor_label_below_50(self):
-        pairs = [("H1", Status.FAIL), ("H2", Status.FAIL), ("H3", Status.FAIL)]
-        output = self._score_output(pairs)
-        assert "Poor" in output
-
-    def test_tip_shows_more_when_over_three_missing(self):
-        from headersvalidator.reporter import _print_score_panel
-        from headersvalidator.models import HeaderResult
-
-        # Build a report with 4 absent required headers to trigger the "+N more" branch
-        def _absent(name):
-            return HeaderResult(
-                name=name,
-                status=Status.FAIL,
-                present=False,
-                value=None,
-                recommended="x",
-                source="test",
-                reason="missing",
+    def test_shows_critical_action(self):
+        actions = [
+            VerdictAction(
+                text="Add Strict-Transport-Security: missing required header",
+                severity=VerdictSeverity.CRITICAL,
+                header_name="Strict-Transport-Security",
             )
+        ]
+        grade = Grade(letter="F", penalty=25, rationale="1 critical issue(s) found (25 penalty point(s)).")
+        output = self._verdict_output(actions, grade)
+        assert "CRITICAL" in output
+        assert "Strict-Transport-Security" in output
 
-        report = HeadersReport(
-            url="https://example.com",
-            status_code=200,
-            final_url="https://example.com",
-            results=[_absent(f"H{i}") for i in range(4)],
-        )
-        buf = StringIO()
-        con = Console(file=buf, highlight=False, no_color=True, width=200)
-        _print_score_panel(report, con)
-        output = buf.getvalue()
-        assert "more" in output
+    def test_shows_high_action(self):
+        actions = [
+            VerdictAction(
+                text="Fix X-Frame-Options: bad value",
+                severity=VerdictSeverity.HIGH,
+                header_name="X-Frame-Options",
+            )
+        ]
+        grade = Grade(letter="B", penalty=10, rationale="1 high issue(s) found (10 penalty point(s)).")
+        output = self._verdict_output(actions, grade)
+        assert "HIGH" in output
+
+    def test_shows_medium_action(self):
+        actions = [
+            VerdictAction(
+                text="Remove Expect-CT: deprecated header should not be sent",
+                severity=VerdictSeverity.MEDIUM,
+                header_name="Expect-CT",
+            )
+        ]
+        grade = Grade(letter="A", penalty=3, rationale="1 medium issue(s) found (3 penalty point(s)).")
+        output = self._verdict_output(actions, grade)
+        assert "MEDIUM" in output
+
+    def test_shows_pass_when_no_actions(self):
+        grade = Grade(letter="A+", penalty=0, rationale="No issues found — all evaluated headers pass.")
+        output = self._verdict_output([], grade)
+        assert "PASS" in output
+
+    def test_shows_grade_letter(self):
+        grade = Grade(letter="C", penalty=30, rationale="1 critical, 1 high issue(s) found (35 penalty point(s)).")
+        output = self._verdict_output([], grade)
+        assert "C" in output

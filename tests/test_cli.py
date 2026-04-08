@@ -86,11 +86,11 @@ class TestCheckCommand:
             result = runner.invoke(app, ["check", "https://example.com"])
         assert "example.com" in result.output
 
-    def test_output_contains_score(self):
+    def test_output_contains_grade(self):
         report = _make_report(Status.PASS)
         with _patch_assess(report):
             result = runner.invoke(app, ["check", "https://example.com"])
-        assert "/100" in result.output
+        assert any(g in result.output for g in ("A+", "A", "B", "C", "D", "F"))
 
     def test_custom_timeout_passed(self):
         report = _make_report(Status.PASS)
