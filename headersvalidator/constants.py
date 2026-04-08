@@ -426,10 +426,10 @@ HEADER_RULES: list[dict] = [
         "name": "Cache-Control",
         "iana_status": "permanent",
         "source": "RFC 9111 §5.2 + OWASP",
-        "required": True,
+        "required": False,
         "check": _cache_control_check,
         "recommended": "no-store, max-age=0",
-        "description": "Declares cacheability; RFC 9111 requires explicit directives for correctness.",
+        "description": "Declares cacheability; RFC 9111 recommends explicit directives for correctness.",
     },
     # ------------------------------------------------------------------
     # 7. Permissions-Policy  (W3C Permissions Policy + OWASP)
@@ -438,7 +438,7 @@ HEADER_RULES: list[dict] = [
         "name": "Permissions-Policy",
         "iana_status": "permanent",
         "source": "W3C Permissions Policy + OWASP",
-        "required": False,
+        "required": True,
         "check": _permissions_check,
         "recommended": "geolocation=(), camera=(), microphone=(), payment=()",
         "description": "Limits access to browser features (camera, geolocation, etc.).",

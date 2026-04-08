@@ -84,7 +84,7 @@ class TestCheckHeader:
 
     def test_absent_optional_header_is_info(self):
         checker = make_checker({})
-        result = checker.check_header("Permissions-Policy")
+        result = checker.check_header("Cross-Origin-Opener-Policy")
         assert result.status == Status.INFO
         assert result.present is False
 
@@ -283,13 +283,13 @@ class TestCacheControl:
         # Empty value has no protective directive
         assert r.status in (Status.WARN, Status.FAIL)
 
-    def test_fail_absent(self):
+    def test_info_absent_optional(self):
         c = make_checker({})
-        assert c.check_header("Cache-Control").status == Status.FAIL
+        assert c.check_header("Cache-Control").status == Status.INFO
 
 
 # ---------------------------------------------------------------------------
-# Permissions-Policy (optional header)
+# Permissions-Policy (required header)
 # ---------------------------------------------------------------------------
 
 
@@ -306,10 +306,10 @@ class TestPermissionsPolicy:
         assert r.status == Status.WARN
         assert "geolocation" in r.reason
 
-    def test_info_absent_optional(self):
+    def test_fail_absent_required(self):
         c = make_checker({})
         r = c.check_header("Permissions-Policy")
-        assert r.status == Status.INFO
+        assert r.status == Status.FAIL
 
 
 # ---------------------------------------------------------------------------

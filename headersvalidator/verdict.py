@@ -4,10 +4,11 @@ Analyses a :class:`~headersvalidator.models.HeadersReport` and produces a
 ranked list of :class:`VerdictAction` items highlighting the most important
 improvements an operator should make.  Severity is context-aware:
 
-* Required header absent or invalid value → ``CRITICAL``.
-* Required header with sub-optimal value  → ``HIGH``.
-* Optional header invalid value           → ``HIGH``.
-* Optional header sub-optimal value       → ``MEDIUM``.
+* Required header absent                  → ``CRITICAL``.
+* Required header present, bad value      → ``HIGH``.
+* Required header sub-optimal value       → ``MEDIUM``.
+* Optional header present, bad value      → ``MEDIUM``.
+* Optional header sub-optimal value       → suppressed (results table only).
 * Deprecated header present               → ``MEDIUM``.
 """
 
@@ -173,9 +174,9 @@ def extract_verdict_actions(report: HeadersReport) -> list[VerdictAction]:
 
     * Required + ``FAIL`` (absent)  → ``CRITICAL``
     * Required + ``FAIL`` (present) → ``HIGH``
-    * Required + ``WARN``           → ``HIGH``
-    * Optional + ``FAIL``           → ``HIGH``
-    * Optional + ``WARN``           → ``MEDIUM``
+    * Required + ``WARN``           → ``MEDIUM``
+    * Optional + ``FAIL``           → ``MEDIUM``
+    * Optional + ``WARN``           → suppressed (results table only)
     * ``DEPRECATED``                → ``MEDIUM``
 
     The result is sorted from most to least urgent.
@@ -210,7 +211,11 @@ def extract_verdict_actions(report: HeadersReport) -> list[VerdictAction]:
                 sev = VerdictSeverity.HIGH if required else VerdictSeverity.MEDIUM
                 verb = "Fix"
         else:  # WARN
-            sev = VerdictSeverity.HIGH if required else VerdictSeverity.MEDIUM
+            if not required:
+                # Optional headers with sub-optimal values are informational;
+                # they appear in the results table but not in the verdict panel.
+                continue
+            sev = VerdictSeverity.MEDIUM
             verb = "Review"
 
         actions.append(

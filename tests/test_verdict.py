@@ -18,7 +18,7 @@ from headersvalidator.verdict import (
 # ---------------------------------------------------------------------------
 
 _REQUIRED_HEADER = "Strict-Transport-Security"
-_OPTIONAL_HEADER = "Permissions-Policy"
+_OPTIONAL_HEADER = "Cache-Control"
 
 
 def _make_result(
@@ -141,18 +141,21 @@ class TestExtractVerdictActionsFailPresent:
 
 
 class TestExtractVerdictActionsWarn:
-    def test_required_warn_is_high(self):
+    def test_required_warn_is_medium(self):
         result = _make_result(_REQUIRED_HEADER, Status.WARN)
-        actions = extract_verdict_actions(_make_report(result))
-        assert actions[0].severity is VerdictSeverity.HIGH
-
-    def test_optional_warn_is_medium(self):
-        result = _make_result(_OPTIONAL_HEADER, Status.WARN)
         actions = extract_verdict_actions(_make_report(result))
         assert actions[0].severity is VerdictSeverity.MEDIUM
 
+    def test_optional_warn_is_suppressed(self):
+        # Optional headers with sub-optimal values are informational only;
+        # they must not appear in the verdict action list.
+        _TRULY_OPTIONAL = "Cross-Origin-Opener-Policy"
+        result = _make_result(_TRULY_OPTIONAL, Status.WARN)
+        actions = extract_verdict_actions(_make_report(result))
+        assert actions == []
+
     def test_warn_action_text_starts_with_review(self):
-        result = _make_result(_OPTIONAL_HEADER, Status.WARN)
+        result = _make_result(_REQUIRED_HEADER, Status.WARN)
         actions = extract_verdict_actions(_make_report(result))
         assert actions[0].text.startswith("Review")
 
@@ -165,8 +168,8 @@ class TestExtractVerdictActionsWarn:
 class TestExtractVerdictActionsSorting:
     def test_results_sorted_critical_first(self):
         results = [
-            _make_result(_OPTIONAL_HEADER, Status.WARN),           # MEDIUM
-            _make_result(_REQUIRED_HEADER, Status.FAIL, present=False),  # CRITICAL
+            _make_result("Permissions-Policy", Status.WARN),              # MEDIUM (required+WARN)
+            _make_result(_REQUIRED_HEADER, Status.FAIL, present=False),   # CRITICAL
         ]
         actions = extract_verdict_actions(_make_report(*results))
         assert actions[0].severity is VerdictSeverity.CRITICAL

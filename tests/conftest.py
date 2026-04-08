@@ -78,7 +78,7 @@ MINIMAL_REQUIRED_HEADERS: dict[str, str] = {
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
-    "Cache-Control": "no-store",
+    "Permissions-Policy": "geolocation=(), camera=(), microphone=()",
 }
 
 # Empty headers — everything missing
