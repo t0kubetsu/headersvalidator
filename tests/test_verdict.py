@@ -11,6 +11,7 @@ from headersvalidator.verdict import (
     VerdictSeverity,
     calculate_grade,
     extract_verdict_actions,
+    _PENALTY,
 )
 
 # ---------------------------------------------------------------------------
@@ -161,13 +162,23 @@ class TestExtractVerdictActionsWarn:
         actions = extract_verdict_actions(_make_report(result))
         assert actions[0].severity is VerdictSeverity.MEDIUM
 
-    def test_optional_warn_is_suppressed(self):
-        # Optional headers with sub-optimal values are informational only;
-        # they must not appear in the verdict action list.
+    def test_optional_warn_is_info(self):
+        # Optional headers with sub-optimal values surface at INFO severity
+        # (zero penalty) so operators can see them without affecting the grade.
         _TRULY_OPTIONAL = "Cross-Origin-Opener-Policy"
         result = _make_result(_TRULY_OPTIONAL, Status.WARN)
         actions = extract_verdict_actions(_make_report(result))
-        assert actions == []
+        assert len(actions) == 1
+        assert actions[0].severity is VerdictSeverity.INFO
+
+    def test_optional_warn_info_has_zero_penalty(self):
+        assert _PENALTY[VerdictSeverity.INFO] == 0
+
+    def test_optional_warn_action_text_starts_with_note(self):
+        _TRULY_OPTIONAL = "Cross-Origin-Opener-Policy"
+        result = _make_result(_TRULY_OPTIONAL, Status.WARN)
+        actions = extract_verdict_actions(_make_report(result))
+        assert actions[0].text.startswith("Note")
 
     def test_warn_action_text_starts_with_review(self):
         result = _make_result(_REQUIRED_HEADER, Status.WARN)
@@ -214,6 +225,14 @@ class TestCalculateGrade:
 
     def test_a_plus_rationale(self):
         grade = calculate_grade([])
+        assert "No issues" in grade.rationale
+
+    def test_info_only_gives_a_plus_no_penalty(self):
+        # INFO actions carry zero penalty and should not affect the grade.
+        actions = [VerdictAction("t", VerdictSeverity.INFO, "H")]
+        grade = calculate_grade(actions)
+        assert grade.letter == "A+"
+        assert grade.penalty == 0
         assert "No issues" in grade.rationale
 
     def test_one_critical_gives_a(self):

@@ -9,7 +9,7 @@ improvements an operator should make.  Severity is context-aware:
 * Required header present, bad value      → ``HIGH``.
 * Required header sub-optimal value       → ``MEDIUM``.
 * Optional header present, bad value      → ``MEDIUM``.
-* Optional header sub-optimal value       → suppressed (results table only).
+* Optional header sub-optimal value       → ``INFO`` (shown in verdict, zero penalty).
 * Deprecated header present               → ``MEDIUM``.
 
 The tier distinction reflects actual exploit impact: Tier-1 headers directly
@@ -33,12 +33,17 @@ from headersvalidator.models import HeadersReport, Status
 class VerdictSeverity(str, Enum):
     """Severity level for a verdict action item.
 
-    Ordered from most to least urgent: ``CRITICAL`` → ``HIGH`` → ``MEDIUM``.
+    Ordered from most to least urgent:
+    ``CRITICAL`` → ``HIGH`` → ``MEDIUM`` → ``INFO``.
+
+    ``INFO`` carries no penalty; it surfaces optional-header observations that
+    are worth knowing about but do not affect the letter grade.
     """
 
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"
+    INFO = "INFO"
 
 
 @dataclass
@@ -82,12 +87,14 @@ _SEVERITY_ORDER: dict[VerdictSeverity, int] = {
     VerdictSeverity.CRITICAL: 0,
     VerdictSeverity.HIGH: 1,
     VerdictSeverity.MEDIUM: 2,
+    VerdictSeverity.INFO: 3,
 }
 
 _PENALTY: dict[VerdictSeverity, int] = {
     VerdictSeverity.CRITICAL: 10,
     VerdictSeverity.HIGH: 5,
     VerdictSeverity.MEDIUM: 2,
+    VerdictSeverity.INFO: 0,
 }
 
 # Penalty thresholds for letter grades (inclusive upper bound; 0 → A+).
@@ -161,12 +168,13 @@ def calculate_grade(actions: list[VerdictAction]) -> Grade:
             letter = grade_letter
             break
 
-    if penalty == 0:
+    scored = [a for a in actions if a.severity is not VerdictSeverity.INFO]
+    if not scored:
         rationale = "No issues found — all evaluated headers pass."
     else:
-        n_critical = sum(1 for a in actions if a.severity is VerdictSeverity.CRITICAL)
-        n_high = sum(1 for a in actions if a.severity is VerdictSeverity.HIGH)
-        n_medium = sum(1 for a in actions if a.severity is VerdictSeverity.MEDIUM)
+        n_critical = sum(1 for a in scored if a.severity is VerdictSeverity.CRITICAL)
+        n_high = sum(1 for a in scored if a.severity is VerdictSeverity.HIGH)
+        n_medium = sum(1 for a in scored if a.severity is VerdictSeverity.MEDIUM)
         parts: list[str] = []
         if n_critical:
             parts.append(f"{n_critical} critical")
@@ -191,7 +199,7 @@ def extract_verdict_actions(report: HeadersReport) -> list[VerdictAction]:
     * Required + ``FAIL`` (present)        → ``HIGH``
     * Required + ``WARN``                  → ``MEDIUM``
     * Optional + ``FAIL``                  → ``MEDIUM``
-    * Optional + ``WARN``                  → suppressed (results table only)
+    * Optional + ``WARN``                  → ``INFO`` (shown, zero penalty)
     * ``DEPRECATED``                       → ``MEDIUM``
 
     The result is sorted from most to least urgent.
@@ -227,8 +235,15 @@ def extract_verdict_actions(report: HeadersReport) -> list[VerdictAction]:
                 verb = "Fix"
         else:  # WARN
             if not required:
-                # Optional headers with sub-optimal values are informational;
-                # they appear in the results table but not in the verdict panel.
+                # Optional headers with sub-optimal values are informational:
+                # shown in the verdict panel at INFO severity (zero penalty).
+                actions.append(
+                    VerdictAction(
+                        text=f"Note {result.name}: {result.reason}",
+                        severity=VerdictSeverity.INFO,
+                        header_name=result.name,
+                    )
+                )
                 continue
             sev = VerdictSeverity.MEDIUM
             verb = "Review"

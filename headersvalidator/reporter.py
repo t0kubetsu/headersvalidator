@@ -39,6 +39,7 @@ _SEVERITY_STYLE: dict[VerdictSeverity, str] = {
     VerdictSeverity.CRITICAL: "bold red",
     VerdictSeverity.HIGH: "bold yellow",
     VerdictSeverity.MEDIUM: "bold cyan",
+    VerdictSeverity.INFO: "dim",
 }
 
 # Grade letter → Rich colour string
