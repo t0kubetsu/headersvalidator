@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "headersvalidator"
-version = "0.1.0"
+version = "0.1.1"
 description = "HTTP response header validator — RFC 9110, RFC 9111, OWASP, IANA"
 readme = "README.md"
 requires-python = ">=3.11"

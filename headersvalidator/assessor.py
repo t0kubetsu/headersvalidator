@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import logging
 
+import requests.exceptions
+
 from headersvalidator.checker import HeadersChecker
 from headersvalidator.constants import HTTP_TIMEOUT
 from headersvalidator.http_utils import extract_headers, fetch_headers, normalise_url
@@ -43,6 +45,9 @@ def assess(
     prepended automatically (RFC 9110 §4.1 preference for secure transport).
 
     :param url: Target URL.  Scheme is optional; ``https://`` is assumed.
+        If the HTTPS connection is refused (port 443 closed), the function
+        automatically retries over ``http://`` so that plain-HTTP→HTTPS
+        redirect chains are followed.  TLS errors are never silently retried.
     :param timeout: Per-request socket timeout in seconds.
     :param verify_tls: If ``False``, TLS certificate errors are ignored
         (useful for internal or self-signed hosts).
@@ -57,9 +62,35 @@ def assess(
     logger.info("Starting header validation for %s", url)
 
     # ---- Network I/O (single point — easy to mock in tests) ----------
-    response = fetch_headers(
-        url, timeout=timeout, verify_tls=verify_tls, user_agent=user_agent
-    )
+    # If https:// fails with a connection error (port closed, not an TLS error),
+    # retry with http:// so that plain-HTTP→HTTPS redirect chains are followed.
+    try:
+        response = fetch_headers(
+            url, timeout=timeout, verify_tls=verify_tls, user_agent=user_agent
+        )
+    except requests.exceptions.ConnectionError as exc:
+        # SSLError is a subclass of ConnectionError — do NOT fall back for TLS
+        # errors; those indicate an active connection that failed at the TLS
+        # layer and should be surfaced as-is.
+        if isinstance(exc, requests.exceptions.SSLError) or not url.startswith(
+            "https://"
+        ):
+            raise
+        http_url = "http://" + url[len("https://") :]
+        logger.info(
+            "HTTPS connection refused for %s — retrying over HTTP (%s)",
+            url,
+            http_url,
+        )
+        try:
+            response = fetch_headers(
+                http_url,
+                timeout=timeout,
+                verify_tls=verify_tls,
+                user_agent=user_agent,
+            )
+        except requests.exceptions.RequestException:
+            raise exc  # re-raise the original HTTPS error
 
     # ---- Extract normalised headers ----------------------------------
     headers = extract_headers(response)

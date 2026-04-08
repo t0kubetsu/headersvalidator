@@ -127,12 +127,13 @@ class TestAssessUrlNormalisation:
 
 
 class TestAssessNetworkError:
-    def test_raises_on_connection_error(self, monkeypatch):
+    def test_raises_on_connection_error_when_both_fail(self, monkeypatch):
+        # Both HTTPS and HTTP fallback fail — the original HTTPS error is raised.
         monkeypatch.setattr(
             "headersvalidator.assessor.fetch_headers",
             lambda *a, **kw: (_ for _ in ()).throw(requests.ConnectionError("refused")),
         )
-        with pytest.raises(requests.RequestException):
+        with pytest.raises(requests.ConnectionError):
             assess("https://unreachable.example.com")
 
     def test_passes_timeout_to_fetch(self, monkeypatch):
@@ -158,6 +159,74 @@ class TestAssessNetworkError:
         monkeypatch.setattr("headersvalidator.assessor.fetch_headers", mock_fetch)
         assess("https://example.com", verify_tls=False)
         assert captured["verify_tls"] is False
+
+
+# ---------------------------------------------------------------------------
+# HTTP fallback when HTTPS port is closed
+# ---------------------------------------------------------------------------
+
+
+class TestAssessHttpFallback:
+    def test_https_connection_error_retries_http(self, monkeypatch):
+        """HTTPS ConnectionError (not SSLError) → automatic http:// retry succeeds."""
+        response = make_response(SECURE_HEADERS, url="https://example.com")
+        calls = []
+
+        def mock_fetch(url, **kwargs):
+            calls.append(url)
+            if url.startswith("https://"):
+                raise requests.ConnectionError("refused")
+            return response
+
+        monkeypatch.setattr("headersvalidator.assessor.fetch_headers", mock_fetch)
+        report = assess("https://example.com")
+        assert calls == ["https://example.com", "http://example.com"]
+        assert report is not None
+
+    def test_ssl_error_is_not_retried(self, monkeypatch):
+        """SSLError must not trigger an http:// fallback — surface the TLS error."""
+        calls = []
+
+        def mock_fetch(url, **kwargs):
+            calls.append(url)
+            raise requests.exceptions.SSLError("cert verify failed")
+
+        monkeypatch.setattr("headersvalidator.assessor.fetch_headers", mock_fetch)
+        with pytest.raises(requests.exceptions.SSLError):
+            assess("https://example.com")
+        # Only the HTTPS attempt — no http:// retry.
+        assert calls == ["https://example.com"]
+
+    def test_https_connection_error_http_also_fails_raises_original(self, monkeypatch):
+        """When both HTTPS and HTTP fail, the original HTTPS error is re-raised."""
+        https_error = requests.ConnectionError("https refused")
+        http_error = requests.ConnectionError("http refused")
+        calls = []
+
+        def mock_fetch(url, **kwargs):
+            calls.append(url)
+            if url.startswith("https://"):
+                raise https_error
+            raise http_error
+
+        monkeypatch.setattr("headersvalidator.assessor.fetch_headers", mock_fetch)
+        with pytest.raises(requests.ConnectionError) as exc_info:
+            assess("https://example.com")
+        assert exc_info.value is https_error
+        assert calls == ["https://example.com", "http://example.com"]
+
+    def test_plain_http_url_connection_error_not_retried(self, monkeypatch):
+        """A plain http:// URL that fails must NOT be retried (no fallback loop)."""
+        calls = []
+
+        def mock_fetch(url, **kwargs):
+            calls.append(url)
+            raise requests.ConnectionError("refused")
+
+        monkeypatch.setattr("headersvalidator.assessor.fetch_headers", mock_fetch)
+        with pytest.raises(requests.ConnectionError):
+            assess("http://example.com")
+        assert calls == ["http://example.com"]
 
 
 # ---------------------------------------------------------------------------
