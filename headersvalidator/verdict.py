@@ -4,12 +4,17 @@ Analyses a :class:`~headersvalidator.models.HeadersReport` and produces a
 ranked list of :class:`VerdictAction` items highlighting the most important
 improvements an operator should make.  Severity is context-aware:
 
-* Required header absent                  → ``CRITICAL``.
+* Tier-1 required header absent (STS, CSP, XFO, XCTO) → ``CRITICAL``.
+* Tier-2 required header absent (Referrer-Policy, Permissions-Policy) → ``HIGH``.
 * Required header present, bad value      → ``HIGH``.
 * Required header sub-optimal value       → ``MEDIUM``.
 * Optional header present, bad value      → ``MEDIUM``.
 * Optional header sub-optimal value       → suppressed (results table only).
 * Deprecated header present               → ``MEDIUM``.
+
+The tier distinction reflects actual exploit impact: Tier-1 headers directly
+enable well-known attacks (SSL stripping, XSS, clickjacking, MIME sniffing)
+when absent; Tier-2 headers are privacy hygiene and defence-in-depth measures.
 """
 
 from __future__ import annotations
@@ -99,6 +104,15 @@ _REQUIRED_HEADERS: frozenset[str] = frozenset(
     rule["name"] for rule in HEADER_RULES if rule["required"]
 )
 
+# Per-header severity when absent (required headers only).
+# Tier-1 headers enable active exploits when absent → CRITICAL.
+# Tier-2 headers are privacy/defence-in-depth hygiene → HIGH.
+_ABSENT_SEVERITY: dict[str, VerdictSeverity] = {
+    rule["name"]: VerdictSeverity(rule["absent_severity"])
+    for rule in HEADER_RULES
+    if rule.get("absent_severity")
+}
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -170,14 +184,15 @@ def extract_verdict_actions(report: HeadersReport) -> list[VerdictAction]:
 
     Results with ``Status.PASS`` or ``Status.INFO`` are silently skipped.
     For every other result the severity is determined by the combination of
-    the header's ``required`` flag and the status:
+    the header's ``required`` flag, its ``absent_severity`` tier, and the status:
 
-    * Required + ``FAIL`` (absent)  → ``CRITICAL``
-    * Required + ``FAIL`` (present) → ``HIGH``
-    * Required + ``WARN``           → ``MEDIUM``
-    * Optional + ``FAIL``           → ``MEDIUM``
-    * Optional + ``WARN``           → suppressed (results table only)
-    * ``DEPRECATED``                → ``MEDIUM``
+    * Tier-1 required + ``FAIL`` (absent)  → ``CRITICAL``
+    * Tier-2 required + ``FAIL`` (absent)  → ``HIGH``
+    * Required + ``FAIL`` (present)        → ``HIGH``
+    * Required + ``WARN``                  → ``MEDIUM``
+    * Optional + ``FAIL``                  → ``MEDIUM``
+    * Optional + ``WARN``                  → suppressed (results table only)
+    * ``DEPRECATED``                       → ``MEDIUM``
 
     The result is sorted from most to least urgent.
 
@@ -205,7 +220,7 @@ def extract_verdict_actions(report: HeadersReport) -> list[VerdictAction]:
 
         if result.status == Status.FAIL:
             if not result.present:
-                sev = VerdictSeverity.CRITICAL if required else VerdictSeverity.HIGH
+                sev = _ABSENT_SEVERITY.get(result.name, VerdictSeverity.HIGH) if required else VerdictSeverity.HIGH
                 verb = "Add"
             else:
                 sev = VerdictSeverity.HIGH if required else VerdictSeverity.MEDIUM

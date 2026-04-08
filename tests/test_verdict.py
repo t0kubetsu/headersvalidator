@@ -107,6 +107,21 @@ class TestExtractVerdictActionsFailAbsent:
         actions = extract_verdict_actions(_make_report(result))
         assert actions[0].severity is VerdictSeverity.HIGH
 
+    def test_tier2_required_absent_is_high(self):
+        # Tier-2 headers (Referrer-Policy, Permissions-Policy) are required but
+        # their absence is HIGH rather than CRITICAL — they are privacy/hygiene
+        # headers, not direct-exploit-enabler headers.
+        result = _make_result("Referrer-Policy", Status.FAIL, present=False)
+        actions = extract_verdict_actions(_make_report(result))
+        assert actions[0].severity is VerdictSeverity.HIGH
+
+    def test_tier1_required_absent_is_critical(self):
+        # Tier-1 headers (STS, CSP, XFO, XCTO) absent → CRITICAL.
+        for header in ("Content-Security-Policy", "X-Frame-Options", "X-Content-Type-Options"):
+            result = _make_result(header, Status.FAIL, present=False)
+            actions = extract_verdict_actions(_make_report(result))
+            assert actions[0].severity is VerdictSeverity.CRITICAL, f"{header} should be CRITICAL"
+
     def test_absent_action_text_starts_with_add(self):
         result = _make_result(_REQUIRED_HEADER, Status.FAIL, present=False)
         actions = extract_verdict_actions(_make_report(result))
