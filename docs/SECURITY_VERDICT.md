@@ -1,4 +1,4 @@
-# Security Verdict & Grading
+# Security Verdict & Grading Reference
 
 > **Audience:** Security teams, CISOs, and anyone who wants to understand *why* a header
 > is assigned a particular severity rather than just what the verdict is.
