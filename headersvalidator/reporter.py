@@ -68,7 +68,7 @@ def print_full_report(report: HeadersReport, console: Console | None = None) -> 
     :param console: Optional Rich console to write to; defaults to the module-level console.
     """
     con = console or _console
-    con.rule(f"[bold cyan]headersvalidator — {report.url}[/bold cyan]")
+    con.rule(f"[bold cyan]HTTP Headers Report — {report.url}[/bold cyan]")
     con.print()
     _print_results_table(report, con)
     actions = extract_verdict_actions(report)
@@ -177,7 +177,9 @@ def _print_verdict(actions: list[VerdictAction], grade: Grade, con: Console) -> 
     """
     border_colour = _GRADE_STYLE.get(grade.letter, "bold white").split()[-1]
 
-    table = Table(box=box.SIMPLE, show_header=True, header_style="bold white", expand=True)
+    table = Table(
+        box=box.SIMPLE, show_header=True, header_style="bold white", expand=True
+    )
     table.add_column("Priority", style="bold", min_width=10, no_wrap=True)
     table.add_column("Action")
 
