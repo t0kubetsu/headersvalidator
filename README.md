@@ -11,7 +11,7 @@ $ headersvalidator check example.com
 ```
 
 ![Python](https://img.shields.io/badge/python-%3E%3D3.11-blue)
-![Tests](https://img.shields.io/badge/tests-304%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-309%20passing-brightgreen)
 ![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen)
 ![License](https://img.shields.io/badge/license-GPLv3-lightgrey)
 
@@ -258,6 +258,8 @@ pytest tests/test_checker.py
 # Run a single test class
 pytest tests/test_checker.py::TestHSTS -v
 ```
+
+The test suite has **309 tests** and maintains **100% statement coverage**.
 
 All HTTP network I/O (`requests.head`, `requests.get`) is mocked at the
 `fetch_headers` boundary — no test touches a real server or the internet.

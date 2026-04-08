@@ -73,3 +73,36 @@ Score = `round(earned / (graded_count * 2) * 100)`.
 - Input validation lives in `cli.py` (URL normalisation delegated to `normalise_url()` in `http_utils.py`)
 - `fetch_headers()` from `http_utils` is the single I/O abstraction; patch it in tests via `monkeypatch`
 - No CI config currently present
+
+## Before Every Commit
+
+Run these checks and update these files as needed — do not skip any step:
+
+```bash
+# 1. Verify tests pass and coverage is still 100%
+pytest
+```
+
+If the test count changed, update **both** occurrences in `README.md`:
+- Badge line (near top): `![Tests](https://img.shields.io/badge/tests-NNN%20passing-brightgreen)`
+- Running Tests section: "The test suite has **NNN tests**…" sentence
+
+Also update the count in **this file** (`CLAUDE.md`) under "Current State".
+
+```bash
+# 2. Check for lint issues
+ruff check headersvalidator/
+```
+
+Fix any F401 (unused import) or other errors before committing.
+
+## Version Bumping
+
+When committing a set of changes, bump the version using semver:
+- **patch** (`0.1.x`) — bug fixes, RFC compliance fixes, lint/refactor, docs
+- **minor** (`0.x.0`) — new checks, new CLI commands, new features
+- **major** (`x.0.0`) — breaking API changes
+
+Two files must always be updated together:
+- `pyproject.toml` → `version = "x.y.z"`
+- `headersvalidator/__init__.py` → fallback `__version__ = "x.y.z"` (the `except` branch)
