@@ -69,6 +69,11 @@ def print_full_report(report: HeadersReport, console: Console | None = None) -> 
     """
     con = console or _console
     con.rule(f"[bold cyan]HTTP Headers Report — {report.url}[/bold cyan]")
+    if report.final_url != report.url:
+        con.print(
+            f"  [dim]→ redirected to[/dim] [cyan]{report.final_url}[/cyan]",
+            highlight=False,
+        )
     con.print()
     _print_results_table(report, con)
     actions = extract_verdict_actions(report)

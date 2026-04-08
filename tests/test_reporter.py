@@ -98,6 +98,22 @@ class TestPrintFullReport:
         output = _capture(print_full_report, report)
         assert "End of Report" in output
 
+    def test_shows_redirect_line_when_final_url_differs(self):
+        report = HeadersReport(
+            url="https://eurodns.lu",
+            status_code=200,
+            final_url="https://eurodns.com",
+            results=[_make_result("X-Frame-Options", Status.PASS)],
+        )
+        output = _capture(print_full_report, report)
+        assert "redirected to" in output
+        assert "eurodns.com" in output
+
+    def test_no_redirect_line_when_final_url_matches(self):
+        report = _make_report(("X-Frame-Options", Status.PASS))
+        output = _capture(print_full_report, report)
+        assert "redirected to" not in output
+
 
 # ---------------------------------------------------------------------------
 # print_results_table
