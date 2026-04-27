@@ -69,7 +69,7 @@ Five verdict levels: `PASS`, `WARN`, `FAIL`, `INFO` (optional absent headers), `
 **From source (recommended):**
 
 ```bash
-git clone https://github.com/t0kubetsu/headersvalidator.git
+git clone https://github.com/NC3-TestingPlatform/headersvalidator.git
 cd headersvalidator
 python -m venv .venv
 source .venv/bin/activate
