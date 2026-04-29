@@ -47,10 +47,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/t0kubetsu/headersvalidator"
-Repository = "https://github.com/t0kubetsu/headersvalidator"
-Issues = "https://github.com/t0kubetsu/headersvalidator/issues"
-# Changelog      = "https://github.com/t0kubetsu/headersvalidator/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/NC3-TestingPlatform/headersvalidator"
+Repository = "https://github.com/NC3-TestingPlatform/headersvalidator"
+Issues = "https://github.com/NC3-TestingPlatform/headersvalidator/issues"
+Changelog = "https://github.com/NC3-TestingPlatform/headersvalidator/blob/main/CHANGELOG.md"
 
 [project.scripts]
 headersvalidator = "headersvalidator.cli:app"

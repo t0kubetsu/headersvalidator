@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import re
 
+from headersvalidator import __version__ as _hv_version
 from headersvalidator.models import Status
 
 # ---------------------------------------------------------------------------
@@ -541,7 +542,8 @@ RULES_BY_NAME: dict[str, dict] = {r["name"].lower(): r for r in HEADER_RULES}
 # HTTP request timeout in seconds (mirrors chainvalidator's DNS_TIMEOUT pattern)
 HTTP_TIMEOUT: float = 10.0
 
-# Default User-Agent used for requests
 USER_AGENT: str = (
-    "headersvalidator/0.1.0 (+https://github.com/t0kubetsu/headersvalidator)"
+    f"headersvalidator/{_hv_version}"
+    " (+https://github.com/NC3-TestingPlatform/headersvalidator)"
 )
+del _hv_version
